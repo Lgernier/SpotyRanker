@@ -2,7 +2,7 @@ import pygame as py
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
-py.init()
+py.font.init()
 cid = 'Your Client ID'
 secret = 'Your Secret ID'
 client_credentials_manager = SpotifyClientCredentials(client_id=cid, client_secret=secret)
@@ -36,30 +36,74 @@ CREAM = (240, 243, 189)
 
 #Font
 BIG_FONT = py.font.SysFont('impact', 20)
+BIGGER_FONT = py.font.SysFont('impact', 25)
+BIGGER_FONT_B = py.font.SysFont('impact', 25)
+BIGGER_FONT_B.set_bold(True)
+
 
 class button:
-    def __init__(self, x, y, width, height, font, title, color):
+    def __init__(self, x, y, font, title, color):
         self.x = x
         self.y = y
+        self.title = title
         self.font = font
         self.sprite = font.render(title, 1, CREAM)
         self.color = color
         self.width = len(title) * 10
         self.height = 30
+        self.rect = py.Rect(self.x - 5, self.y, self. width, self.height)
 
     def draw(self, win):
-        py.draw.rect(win, self.color, (self.x - 5, self.y, self. width, self.height))
+        py.draw.rect(win, self.color, self.rect)
         win.blit(self.sprite,(self.x, self.y))
 
+    def isHovered(self):
+        pos = py.mouse.get_pos()
+        if self.rect.collidepoint(pos):
+            self.sprite = self.font.render(self.title, 1, DARK_GREENISH_BLUE)
+        else:
+            self.sprite = self.font.render(self.title, 1, CREAM)
 
-mergeButton = button(30, 100, 100, 30, BIG_FONT, 'Merge Sort', GREEN)
-boxButton = button(170, 100, 80, 30, BIG_FONT, 'Box Sort', GREEN)
+    def isPressed(self):
+        pos = py.mouse.get_pos()
+        if self.rect.collidepoint(pos):
+            if py.mouse.get_pressed()[0] == 1:
+                return True
+            else:
+                return False
+
+
+
+#stats box
+statBox = [BIGGER_FONT.render('Sort :', True, DARK_GREENISH_BLUE), BIGGER_FONT.render('Time :', True, DARK_GREENISH_BLUE)
+           , BIGGER_FONT.render('comparisons: ', True, DARK_GREENISH_BLUE)]
+
+
+mergeButton = button(30, 100, BIG_FONT, 'Merge Sort', GREEN)
+boxButton = button(170, 100, BIG_FONT, 'Box Sort', GREEN)
+
+metricButton = button(50, 140, BIG_FONT,'Sorty BY...', GREEN)
+DropDownBox = button(130, 140, BIGGER_FONT_B, ' > ', GREEN)
+
+buttons = [mergeButton, boxButton, metricButton, DropDownBox]
+
+metrics = ['ID', 'danceability', 'valence', 'url', 'loudness',
+                 'speechiness', 'energy', 'instrumentalness', 'liveness', 'tempo', 'popularity']
+
+dropList = []
+for i in range(len(metrics)):
+    dropList.append(button(160, 140 + 30 * i, BIG_FONT, metrics[i], GREEN))
+    dropList[i].width = 160
+    dropList[i].rect = py.Rect(dropList[i].x - 5, dropList[i].y, 160, dropList[i].height)
+
+visible = False
 
 class Song:
 
 
+
     def __init__(self, x , y, ID, danceability, valence, url, loudness,
-                 speechiness, energy, instrumentalness, liveness, tempo,):
+                 speechiness, energy, instrumentalness, liveness, tempo, popularity):
         self.x = x
         self.y = y
         self.ID = ID
@@ -72,9 +116,11 @@ class Song:
         self.instrumentalness = instrumentalness
         self.liveness = liveness
         self.tempo = tempo
+        self.popularity = popularity
+
 
 class Track:
-    def __init__(self, x, y, width, height, metric):
+    def __init__(self, x, y, width, height, ID, metric):
         self.x = x
         self.y = y
         self.width = width
@@ -88,14 +134,37 @@ class Track:
 
 
 
-def draw_window(win):
+def draw_window(win, visible):
+
     win.fill(GREEN)
     py.draw.rect(win, GREENISH_BLUE, (0, 0,300, 720))
 
     py.draw.rect(win, LIGHT_GREEN, (0, 400, 300, 320))
-    mergeButton.draw(win)
-    boxButton.draw(win)
+    py.draw.rect(win, CREAM, (40, 440, 220, 240))
+
+    for i in buttons:
+        i.draw(win)
+        i.isHovered()
+
+    for i in range(len(statBox)):
+        win.blit(statBox[i], (50, 440 + 25 * i))
+
+    if DropDownBox.isPressed():
+        visible = True
+
+    if visible:
+        for i in dropList:
+            i.draw(win)
+            i.isHovered()
+
     py.display.update()
+
+
+    for i in buttons:
+        i.draw(win)
+        i.isHovered()
+
+
 
 def main():
     #fps control
@@ -107,7 +176,7 @@ def main():
         for event in py.event.get():
             if event.type == py.QUIT:
                 game = False
-        draw_window(win)
+        draw_window(win, visible)
     py.quit()
 
 
@@ -178,7 +247,7 @@ mergeSort(arr, 0, size - 1)
 print("\n\nSorted Array")
 for i in range(size):
     print(arr[i])
-    print(py.font.get_fonts())
+    #print(py.font.get_fonts())
 # end merge sort
 
 if __name__ == "__main__":
