@@ -139,10 +139,14 @@ class Track:
     def __init__(self, x, y, width, height, URL, metric):
         self.x = x
         self.y = y
-        self.width = width
         self.height = height
         self.metric = metric
+        self.width = width
         self.color = DARK_GREENISH_BLUE
+
+
+
+        #turning url into and image object
         image_url = URL
         image_str = urlopen(image_url).read()
         image_file = io.BytesIO(image_str)
@@ -155,23 +159,49 @@ class Track:
         self.y = num
 
     def check(self):
-            self.color = CREAM
+        self.color = CREAM
 
     def finished(self):
-            self.color = LIGHT_GREEN
+        self.color = LIGHT_GREEN
 
     def match(self):
-            self.color = GREEN
+        self.color = GREEN
 
     def back(self):
         self.color = CREAM
 
 def loadPlaylist(metric, track):
     playlist = []
+    output_start = 0.0
+    output_end = 64.0
+    input_start = 0.0
+    input_end = 1.0
+
+    match (metric):
+        case 'tempo':
+            input_start = 60.0
+            input_end = 200.0
+        case 'loudness':
+            input_start = -20.0
+            input_end = 0.0
+        case 'speechiness':
+            input_start = 0.0
+            input_end = 0.5
+        case 'instrumentalness':
+            input_start = 0.0
+            input_end = 0.1
+        case 'liveness':
+            input_start = 0.0
+            input_end = 0.8
+
+    slope = (output_end - output_start)/(input_end - input_start)
 
     for i in range(len(track)):
-        playlist.append(Track(0, 0, 64, 20, str(sp.track(track[i])['album']['images'][2]['url']),
-                              sp.audio_features(track[i])[0][metric]))
+        input = sp.audio_features(track[i])[0][metric]
+        n_width = int(output_start + slope * (input - input_start))
+        playlist.append(Track(0, 0, n_width, 20, str(sp.track(track[i])['album']['images'][2]['url']),
+                              input))
+        print(playlist[i].metric)
 
     return playlist
 
@@ -204,13 +234,35 @@ for track in id_list[:100]:
 
 """
 
+track_list = []
+playlistIDS = ['37i9dQZF1DWVRSukIED0e9', '37i9dQZF1DX7Jl5KP2eZaS',
+               '37i9dQZF1DX18jTM2l2fJY']
 
-trackList = loadPlaylist('energy', id_list)
+
+def getSongs(min, max):
+    for i in range(min, max):
+        pL = sp.playlist_tracks('spotify:playlist:' + playlistIDS[i])
+        for track in pL['items'][:30]:
+            singleID = track['track']['id']
+            track_list.append(singleID)
+
+    return track_list
+
+getSongs(0, 1)
+
+songList = loadPlaylist('tempo', track_list)
+
+
 
 
 test = Track(600, 400, 64,20, 'https://i.scdn.co/image/ab67616d0000485141720ef0ae31e10d39e43ca2', 'id')
 
-def draw_window(win, visible):
+def draw_songs(arr):
+    for s in arr:
+        s.draw()
+
+
+def draw_window(win, visible, arr):
 
     win.fill(GREEN)
     py.draw.rect(win, GREENISH_BLUE, (0, 0,300, 720))
@@ -234,11 +286,11 @@ def draw_window(win, visible):
         i.draw(win)
         i.isHovered()
 
-    test.draw(win)
+    #test.draw(win)
 
     z = 0
     space = 0
-    for t in trackList:
+    for t in songList:
         t.x = 330 + space
         t.y = 5 + 64 * z
         z += 1
@@ -267,35 +319,39 @@ def main():
                        visible = True
                    else:
                        visible = False
+                if mergeButton.isPressed():
+                    mergeSort(songList, 0, len(songList) - 1, win, visible)
+                    print('done')
 
 
-        draw_window(win, visible)
+        draw_window(win, visible, songList)
     py.quit()
 
 
 # begin merge sort
 # begin code citation: sorting powerpoint slides 89 - 90
-def mergeSort(arr, left, right):
+def mergeSort(arr, left, right, win, visible):
     if left < right:
         # calculate the middle section of the array
         middle = left + (right - left) // 2
 
         # sort first half and second half
-        mergeSort(arr, left, middle)
-        mergeSort(arr, middle + 1, right)
+        mergeSort(arr, left, middle, win, visible)
+        mergeSort(arr, middle + 1, right, win, visible)
 
         # merge all subarrays
-        merge(arr, left, middle, right)
+        merge(arr, left, middle, right, win, visible)
 
-def merge(arr, left, middle, right):
+def merge(arr, left, middle, right, win, visible):
     # create new subarrays
     n1 = middle - left + 1
     n2 = right - middle
 
-    sub1 = [0] * n1
-    sub2 = [0] * n2
+    sub1 = [test] * n1
+    sub2 = [test] * n2
 
     # Copy data into subarrays
+
     for i in range(n1):
         sub1[i] = arr[left + i]
 
@@ -308,7 +364,13 @@ def merge(arr, left, middle, right):
 
     # sort and merge subarrays into one array
     while i < n1 and j < n2:
-        if sub1[i] <= sub2[j]:
+        arr[i].check()
+        arr[j].check()
+        draw_window(win, visible, arr)
+        arr[i].back()
+        arr[j].back()
+
+        if arr[i].metric <= arr[j].metric:
             arr[final] = sub1[i]
             i = i + 1
         else:
@@ -318,17 +380,28 @@ def merge(arr, left, middle, right):
 
     # copy any remaining elements into array
     while i < n1:
+        arr[i].check()
+        draw_window(win, visible, arr)
+        arr[i].back()
+        #temp.append(arr[i])
         arr[final] = sub1[i]
         i = i + 1
         final = final + 1
 
     while j < n2:
+        arr[j].check()
+        draw_window(win, visible, arr)
+        arr[j].back()
+        #temp.append(arr[j])
         arr[final] = sub2[j]
         j = j + 1
         final = final + 1
+
+
+
 # end code citation: sorting powerpoint slides 89 - 90
 
-
+"""
 arr = [12.5, 11.0, 13.5, 5.5, 6.5, 7.5]
 #arr = ["1YieJ8UoB4t4w8Ua0N3nGv", "1mw0RgNXIpYRyyCdBQbLgA", "17RA3JGafJm5zRtKJiKPIm", "1R2kfaDFhslZEMJqAFNpdd"]
 size = len(arr)
@@ -342,6 +415,7 @@ for i in range(size):
     print(arr[i])
     #print(py.font.get_fonts())
 # end merge sort
+"""
 
 if __name__ == "__main__":
     main()
