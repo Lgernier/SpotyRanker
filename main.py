@@ -1,8 +1,8 @@
 import random
+import concurrent.futures
 import pygame as py
 import io
 import numpy as p
-import timeit
 import spotipy
 import time
 
@@ -156,7 +156,7 @@ class checkList:
 
 
 
-Genres = ['hipHop', 'pop','country', 'jazz', 'Top10','rock']
+Genres = ['hiphop', 'pop','country', 'jazz', 'top10','rock']
 
 checkBox = checkList(50, 180, Genres)
 #stats box
@@ -173,11 +173,12 @@ stats = [BIGGER_FONT.render(sort, True, GREEN),
          BIGGER_FONT.render(comparisons, True, GREEN)]
 
 metricButton = button(50, 140, BIG_FONT, 'Sort BY...', GREEN)
-DropDownBox = button(130, 140, BIGGER_FONT_B, ' > ', GREEN)
+metricButton.rect = py.Rect(metricButton.x - 5, metricButton.y, 200, 30)
+DropDownBox = button(230, 140, BIGGER_FONT_B, ' > ', GREEN)
 
 #function buttons
 mergeButton = button(30, 100, BIG_FONT, 'Merge Sort', GREEN)
-boxButton = button(170, 100, BIG_FONT, 'Box Sort', GREEN)
+boxButton = button(170, 100, BIG_FONT, 'Bucket Sort', GREEN)
 
 #page scroll button
 left_scroll = button(1840, 1000, BIG_FONT, ' < ', GREENISH_BLUE)
@@ -198,14 +199,12 @@ metrics = ['num_samples', 'num_artist','danceability', 'duration_ms','valence', 
 
 dropList = []
 for i in range(len(metrics)):
-    dropList.append(button(160, 140 + 30 * i, BIG_FONT, metrics[i], GREEN))
-    dropList[i].width = 160
+    dropList.append(button(260, 140 + 30 * i, BIG_FONT, metrics[i], GREEN))
+    dropList[i].width = 260
     dropList[i].rect = py.Rect(dropList[i].x - 5, dropList[i].y, 160, dropList[i].height)
 
 
 class Song:
-
-
 
     def __init__(self, x , y, ID, danceability, valence, url, loudness,
                  speechiness, energy, instrumentalness, liveness, tempo, popularity):
@@ -233,20 +232,18 @@ class Track:
         self.width = width
         self.color = DARK_GREENISH_BLUE
 
-
-
         #turning url into and image object
         image_url = URL
         image_str = urlopen(image_url).read()
         image_file = io.BytesIO(image_str)
-        self.image = py.image.load(image_file)
-        self.image = py.transform.scale(self.image,(50, 50))
+        self.image = py.image.load(image_file).convert()
+        self.image = py.transform.scale(self.image,(64, 64))
 
 
     def draw(self, win):
-        py.draw.rect(win, self.color, (self.x, self.y, 54, 54))
+        py.draw.rect(win, self.color, (self.x, self.y, 68, 68))
         win.blit(self.image, (self.x + 2, self.y + 2))
-        py.draw.rect(win, self.color, (self.x + 56, self.y + 34, self.width, self.height))
+        py.draw.rect(win, self.color, (self.x + 70, self.y + 50, self.width, self.height))
     def setPosition(self, num):
         self.y = num
 
@@ -262,8 +259,7 @@ class Track:
     def back(self):
         self.color = DARK_GREENISH_BLUE
 
-def loadPlaylist(metric, track):
-    playlist = []
+def loadPlaylist(metric, track, playlist):
     output_start = 0.0
     output_end = 100.0
     input_start = 0.0
@@ -289,13 +285,15 @@ def loadPlaylist(metric, track):
     slope = (output_end - output_start)/(input_end - input_start)
 
     for i in range(len(track)):
-        if metric == 'tempo_confidence' or 'num_samples' or 'key_confidence' or 'mode_confidence':
+
+        if metric == 'tempo_confidence' or metric == 'num_samples' or metric == 'key_confidence' or metric == 'mode_confidence':
             input = sp.audio_analysis(track[i])['track'][metric]
             n_width = int(output_start + slope * (input - input_start))
             playlist.append(Track(0, 0, n_width, 15, str(sp.track(track[i])['album']['images'][2]['url']),
                                   input))
 
-        elif metric == 'duration_ms' or 'track_number' or 'popularity':
+        if metric == 'duration_ms' or metric == 'track_number' or metric == 'popularity':
+            print('first')
             input = sp.track(track[i])[metric]
             n_width = int(output_start + slope * (input - input_start))
             playlist.append(Track(0, 0, n_width, 15, str(sp.track(track[i])['album']['images'][2]['url']),
@@ -315,15 +313,18 @@ def loadPlaylist(metric, track):
             n_width = int(output_start + slope * (input - input_start))
             playlist.append(Track(0, 0, n_width, 15, str(sp.track(track[i])['album']['images'][2]['url']),
                                   input))
-    for i in range(len(track)):
-        input = sp.audio_features(track[i])[0][metric]
-        n_width = int(output_start + slope * (input - input_start))
-        playlist.append(Track(0, 0, n_width, 15, str(sp.track(track[i])['album']['images'][2]['url']),
-                              input))
+
         print(playlist[i].metric)
 
-    return playlist
+    #return playlist
 
+def quickLoad(metric, track, songs):
+    with concurrent.futures.ThreadPoolExecutor() as executer:
+        temp = [executer.submit(loadPlaylist, metric, track[i], songs) for i in range(len(track))]
+
+    print(songs)
+
+    return songs
 
 playlist2021 = sp.playlist_tracks('spotify:playlist:37i9dQZF1DX18jTM2l2fJY')
 
@@ -354,57 +355,62 @@ jazzList = ['37i9dQZF1DX7YCknf2jT6s', '37i9dQZF1DXcWL5K0oNHcG', '37i9dQZF1DX8PhK
 
 
 def getSongs(options):
+    temp = []
+    tracks = []
     if options == 'top10':
         for i in range(0,10):
             pL = sp.playlist_tracks('spotify:playlist:' + top10List[i])
             for track in pL['items'][:100]:
                 singleID = track['track']['id']
-                track_list.append(singleID)
+                temp.append(singleID)
+            track_list.append(temp.copy())
+            temp.clear()
+            print(track_list)
+
     if options == 'hiphop':
         for i in range(0,10):
             pL = sp.playlist_tracks('spotify:playlist:' + hiphopList[i])
             for track in pL['items'][:100]:
                 singleID = track['track']['id']
-                track_list.append(singleID)
+                temp.append(singleID)
+            track_list.append(temp.copy())
+            temp.clear()
     if options == 'pop':
         for i in range(0,10):
             pL = sp.playlist_tracks('spotify:playlist:' + popList[i])
             for track in pL['items'][:100]:
                 singleID = track['track']['id']
-                track_list.append(singleID)
+                temp.append(singleID)
+            track_list.append(temp.copy())
+            temp.clear()
     if options == 'country':
         for i in range(0,10):
             pL = sp.playlist_tracks('spotify:playlist:' + countryList[i])
             for track in pL['items'][:100]:
                 singleID = track['track']['id']
-                track_list.append(singleID)
+                temp.append(singleID)
+            track_list.append(temp.copy())
+            temp.clear()
     if options == 'rock':
         for i in range(0,10):
             pL = sp.playlist_tracks('spotify:playlist:' + rockList[i])
             for track in pL['items'][:100]:
                 singleID = track['track']['id']
-                track_list.append(singleID)
+                temp.append(singleID)
+            track_list.append(temp.copy())
+            temp.clear()
     if options == 'jazz':
         for i in range(0,10):
             pL = sp.playlist_tracks('spotify:playlist:' + jazzList[i])
             for track in pL['items'][:100]:
                 singleID = track['track']['id']
-                track_list.append(singleID)
+                temp.append(singleID)
+            track_list.append(temp.copy())
+            temp.clear()
+    print(track_list)
     return track_list
 
-"""
 
-def getSongs(min, max):
-    for i in range(min, max):
-        pL = sp.playlist_tracks('spotify:playlist:' + playlistIDS[i])
-        for track in pL['items'][:30]:
-            singleID = track['track']['id']
-            track_list.append(singleID)
-
-    return track_list
-"""
-
-#getSongs('top10')
 
 test = Track(600, 400, 64,20, 'https://i.scdn.co/image/ab67616d0000485141720ef0ae31e10d39e43ca2', 'id')
 
@@ -414,7 +420,6 @@ def draw_songs(arr):
 
 
 def draw_window(win, visible, songList, start, end):
-
     win.fill(GREEN)
     py.draw.rect(win, GREENISH_BLUE, (0, 0,350, 720))
 
@@ -435,7 +440,10 @@ def draw_window(win, visible, songList, start, end):
             if dropList[i].isPressed():
                 songList.clear()
                 buttons[2].changeTitle(dropList[i].title)
-                songList = loadPlaylist(metrics[i], track_list)
+                songList = quickLoad(metrics[i], track_list, songList)
+                #songList = songList[0].copy()
+                print(len(songList))
+
 
 
         for i in dropList:
@@ -454,15 +462,16 @@ def draw_window(win, visible, songList, start, end):
     if end > len(songList):
         end = len(songList) - 1
 
-    for t in range(start, end):
-        songList[t].x = 330 + space
-        songList[t].y = 5 + 45 * z
-        z += 1
-        if z == 25:
-            space += 150
-            z = 0
+    if len(songList) > 0:
+        for t in range(start, end):
+            songList[t].x = 360 + space
+            songList[t].y = 5 + 70 * z
+            z += 1
+            if z == 14:
+                space += 150
+                z = 0
 
-        songList[t].draw(win)
+            songList[t].draw(win)
 
     py.display.update()
     return songList
@@ -470,8 +479,9 @@ def draw_window(win, visible, songList, start, end):
 def main():
     #fps control
     songList = []
+    track_list = []
     start_index = 0
-    end_index = 300
+    end_index = 140
     clock = py.time.Clock()
     visible = False
     game = True
@@ -482,10 +492,12 @@ def main():
                 game = False
             if event.type == py.MOUSEBUTTONDOWN:
                 if load_Button.isPressed():
+                    if len(track_list) > 0:
+                        track_list.clear()
                     for i in range(len(checkBox.boxes)):
                         if checkBox.box_mask[i]:
                             track_list = getSongs(Genres[i])
-                            print(track_list)
+                    print(track_list)
 
                 if left_scroll.isPressed() and not start_index == 0:
                     start_index -= 25
@@ -517,6 +529,7 @@ def main():
                     sort = 'Bucket Sort'
                     stats[0] = BIGGER_FONT.render(sort, True, GREEN)
                     start = time.time()
+                    comparisons = str(bucketSort(songList, visible, win, start_index, end_index))
                     comparisons = str(bucketSort(songList, visible, win, start_index, end_index))
                     end = time.time()
                     time = str(round((end - start), 2))
@@ -590,7 +603,6 @@ def merge(arr, left, middle, right, win, visible, comparisons, start, end):
 
     # copy any remaining elements into array
     while iter_i < n1:
-        print('ran while loop one')
         arr[iter_i].check()
         draw_window(win, visible, arr, start, end)
         arr[iter_i].back()
@@ -600,7 +612,6 @@ def merge(arr, left, middle, right, win, visible, comparisons, start, end):
         final = final + 1
 
     while iter_j < n2:
-        print('ran while loop two')
         arr[iter_j].check()
         draw_window(win, visible, arr, start, end)
         arr[iter_j].back()
@@ -609,7 +620,7 @@ def merge(arr, left, middle, right, win, visible, comparisons, start, end):
         iter_j = iter_j + 1
         final = final + 1
     return comparisons
-
+#begin code citation: sorting powerpoint slide 38
 def insertionSort(bArray, visible, win, comparisons,start, end):
     for i in range(len(bArray)):
         bArray[i].check()
@@ -626,7 +637,7 @@ def insertionSort(bArray, visible, win, comparisons,start, end):
             j = j - 1
 
     return bArray
-
+#end code citation: sorting powerpoint slide 38
 
 def bucketSort(array, visible, win, start, end):
     buckets = []
